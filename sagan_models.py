@@ -76,6 +76,23 @@ class Generator(nn.Module):
             layer4.append(nn.ReLU())
             self.l4 = nn.Sequential(*layer4)
             curr_dim = int(curr_dim / 2)
+            
+        # iya - added this because our images are 256x256
+        if self.imsize >= 128:
+            layer5 = []
+            layer5.append(SpectralNorm(nn.ConvTranspose2d(curr_dim, int(curr_dim / 2), 4, 2, 1)))  # 64->128
+            layer5.append(nn.BatchNorm2d(int(curr_dim / 2)))
+            layer5.append(nn.ReLU())
+            self.l5 = nn.Sequential(*layer5)
+            curr_dim = int(curr_dim / 2)
+
+        if self.imsize == 256:
+            layer6 = []
+            layer6.append(SpectralNorm(nn.ConvTranspose2d(curr_dim, int(curr_dim / 2), 4, 2, 1)))  # 128->256
+            layer6.append(nn.BatchNorm2d(int(curr_dim / 2)))
+            layer6.append(nn.ReLU())
+            self.l6 = nn.Sequential(*layer6)
+            curr_dim = int(curr_dim / 2)
 
         self.l1 = nn.Sequential(*layer1)
         self.l2 = nn.Sequential(*layer2)
@@ -131,6 +148,19 @@ class Discriminator(nn.Module):
             layer4.append(nn.LeakyReLU(0.1))
             self.l4 = nn.Sequential(*layer4)
             curr_dim = curr_dim*2
+        
+        if self.imsize >= 128:
+            layer5 = []
+            layer5.append(SpectralNorm(nn.Conv2d(curr_dim, curr_dim, 4, 2, 1)))  # down one more
+            layer5.append(nn.LeakyReLU(0.1))
+            self.l5 = nn.Sequential(*layer5)
+
+        if self.imsize == 256:
+            layer6 = []
+            layer6.append(SpectralNorm(nn.Conv2d(curr_dim, curr_dim, 4, 2, 1)))
+            layer6.append(nn.LeakyReLU(0.1))
+            self.l6 = nn.Sequential(*layer6)
+
         self.l1 = nn.Sequential(*layer1)
         self.l2 = nn.Sequential(*layer2)
         self.l3 = nn.Sequential(*layer3)
