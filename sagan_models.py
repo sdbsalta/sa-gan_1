@@ -111,7 +111,7 @@ class Generator(nn.Module):
         out=self.l2(out)
         out=self.l3(out)
         out,p1 = self.attn1(out)
-        out=self.l4(out)
+        out=self.l6(out)
         out,p2 = self.attn2(out)
         out=self.last(out)
 
@@ -176,7 +176,7 @@ class Discriminator(nn.Module):
         out = self.l2(out)
         out = self.l3(out)
         out,p1 = self.attn1(out)
-        out=self.l4(out)
+        out=self.l6(out)
         out,p2 = self.attn2(out)
         out=self.last(out)
 
