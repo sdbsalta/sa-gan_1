@@ -67,6 +67,9 @@ class Generator(nn.Module):
         layer3.append(SpectralNorm(nn.ConvTranspose2d(curr_dim, int(curr_dim / 2), 4, 2, 1)))
         layer3.append(nn.BatchNorm2d(int(curr_dim / 2)))
         layer3.append(nn.ReLU())
+        
+        curr_dim = int(curr_dim / 2)
+        ch_after_l3 = curr_dim
 
         if self.imsize == 64:
             layer4 = []
@@ -76,11 +79,11 @@ class Generator(nn.Module):
             layer4.append(nn.ReLU())
             self.l4 = nn.Sequential(*layer4)
             curr_dim = int(curr_dim / 2)
-            
-        # iya - added this because our images are 256x256
+                    
+        # for >=128
         if self.imsize >= 128:
             layer5 = []
-            layer5.append(SpectralNorm(nn.ConvTranspose2d(curr_dim, int(curr_dim / 2), 4, 2, 1)))  # 64->128
+            layer5.append(SpectralNorm(nn.ConvTranspose2d(curr_dim, int(curr_dim / 2), 4, 2, 1)))
             layer5.append(nn.BatchNorm2d(int(curr_dim / 2)))
             layer5.append(nn.ReLU())
             self.l5 = nn.Sequential(*layer5)
@@ -88,7 +91,7 @@ class Generator(nn.Module):
 
         if self.imsize == 256:
             layer6 = []
-            layer6.append(SpectralNorm(nn.ConvTranspose2d(curr_dim, int(curr_dim / 2), 4, 2, 1)))  # 128->256
+            layer6.append(SpectralNorm(nn.ConvTranspose2d(curr_dim, int(curr_dim / 2), 4, 2, 1)))
             layer6.append(nn.BatchNorm2d(int(curr_dim / 2)))
             layer6.append(nn.ReLU())
             self.l6 = nn.Sequential(*layer6)
@@ -97,20 +100,25 @@ class Generator(nn.Module):
         self.l1 = nn.Sequential(*layer1)
         self.l2 = nn.Sequential(*layer2)
         self.l3 = nn.Sequential(*layer3)
-        
-        self.attn1 = Self_Attn(curr_dim, 'relu')
-        self.attn2 = Self_Attn(curr_dim, 'relu')
+
+        # Initialize attention with the exact channel sizes where they will run
+        self.attn1 = Self_Attn(ch_after_l3, 'relu')  # runs right after l3
+        self.attn2 = Self_Attn(curr_dim, 'relu')     # runs after l4/l5/l6
 
         last.append(nn.ConvTranspose2d(curr_dim, 3, 4, 2, 1))
         last.append(nn.Tanh())
         self.last = nn.Sequential(*last)
 
+    # --- in Generator.forward ---
     def forward(self, z):
-        # z: [B, z_dim]
         z = z.view(z.size(0), z.size(1), 1, 1)
         out = self.l1(z)
         out = self.l2(out)
         out = self.l3(out)
+
+        # REMOVE this line (it causes the mismatch and optimizer issues):
+        # self.attn1 = Self_Attn(512, 'relu')
+
         out, p1 = self.attn1(out)
 
         if hasattr(self, 'l4'):
@@ -121,7 +129,7 @@ class Generator(nn.Module):
             out = self.l6(out)
 
         out, p2 = self.attn2(out)
-        out = self.last(out)  # ends with Tanh()
+        out = self.last(out)
         return out, p1, p2
 
 class Discriminator(nn.Module):
