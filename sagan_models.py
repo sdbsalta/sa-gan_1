@@ -97,15 +97,16 @@ class Generator(nn.Module):
         self.l1 = nn.Sequential(*layer1)
         self.l2 = nn.Sequential(*layer2)
         self.l3 = nn.Sequential(*layer3)
+        
+        self.attn1 = Self_Attn(curr_dim, 'relu')
+        self.attn2 = Self_Attn(curr_dim, 'relu')
 
         last.append(nn.ConvTranspose2d(curr_dim, 3, 4, 2, 1))
         last.append(nn.Tanh())
         self.last = nn.Sequential(*last)
 
-        self.attn1 = Self_Attn(curr_dim, 'relu')
-        self.attn2 = Self_Attn(curr_dim, 'relu')
-
     def forward(self, z):
+        # z: [B, z_dim]
         z = z.view(z.size(0), z.size(1), 1, 1)
         out = self.l1(z)
         out = self.l2(out)
@@ -120,7 +121,7 @@ class Generator(nn.Module):
             out = self.l6(out)
 
         out, p2 = self.attn2(out)
-        out = self.last(out)
+        out = self.last(out)  # ends with Tanh()
         return out, p1, p2
 
 class Discriminator(nn.Module):
@@ -169,21 +170,24 @@ class Discriminator(nn.Module):
         self.l1 = nn.Sequential(*layer1)
         self.l2 = nn.Sequential(*layer2)
         self.l3 = nn.Sequential(*layer3)
+        
+        self.attn1 = Self_Attn(curr_dim, 'relu')
 
         last.append(nn.Conv2d(curr_dim, 1, 4))
         self.last = nn.Sequential(*last)
 
-        self.attn1 = Self_Attn(curr_dim, 'relu')
         self.attn2 = Self_Attn(curr_dim, 'relu')
 
 
-    def forward(self, z):
-        z = z.view(z.size(0), z.size(1), 1, 1)
-        out = self.l1(z)
+    def forward(self, x):
+        out = self.l1(x)
         out = self.l2(out)
         out = self.l3(out)
+
+        # attention 1 at current channels
         out, p1 = self.attn1(out)
 
+        # optional downsamples (only if they exist)
         if hasattr(self, 'l4'):
             out = self.l4(out)
         if hasattr(self, 'l5'):
@@ -191,7 +195,13 @@ class Discriminator(nn.Module):
         if hasattr(self, 'l6'):
             out = self.l6(out)
 
+        # attention 2 at current channels
         out, p2 = self.attn2(out)
-        out = self.last(out)
-        return out, p1, p2
+
+        # make sure spatial is 4x4 for the final conv (safe for all sizes)
+        if hasattr(self, 'pool4'):
+            out = self.pool4(out)  # nn.AdaptiveAvgPool2d(4)
+
+        out = self.last(out)       # nn.Conv2d(curr_dim, 1, 4)
+        return out.squeeze(), p1, p2
 
